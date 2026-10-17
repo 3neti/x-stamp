@@ -125,3 +125,38 @@ it('bounds an unbreakable token with an ellipsis instead of overflowing its text
     $box = imagettfbbox($text[0]['size'] * .75, 0, $design->asset($design->document['font']), $text[0]['text']);
     expect(abs($box[2] - $box[0]))->toBeLessThanOrEqual($text[0]['width']);
 });
+
+it('fills an image box with a centered crop while keeping legacy stretch behavior', function (bool $portrait) {
+    $path = tempnam(sys_get_temp_dir(), 'stamp-cover-');
+    $artwork = imagecreatetruecolor($portrait ? 100 : 300, $portrait ? 300 : 100);
+    $red = imagecolorallocate($artwork, 255, 0, 0);
+    $green = imagecolorallocate($artwork, 0, 255, 0);
+    $blue = imagecolorallocate($artwork, 0, 0, 255);
+    imagefill($artwork, 0, 0, $red);
+    imagefilledrectangle($artwork, $portrait ? 0 : 100, $portrait ? 100 : 0, $portrait ? 99 : 199, $portrait ? 199 : 99, $green);
+    imagefilledrectangle($artwork, $portrait ? 0 : 200, $portrait ? 200 : 0, $portrait ? 99 : 299, $portrait ? 299 : 99, $blue);
+    imagepng($artwork, $path);
+    imagedestroy($artwork);
+    try {
+        $base = stampCatalog()->resolve('steampunk', 1);
+        $layer = ['type' => 'image', 'x' => 0, 'y' => 0, 'width' => 120, 'height' => 120, 'color' => '#000000', 'asset' => 'photo.png'];
+        $assets = [$base->document['font'] => $base->asset($base->document['font']), 'photo.png' => $path];
+        $cover = new Design([...$base->document, 'layers' => [[...$layer, 'fit' => 'cover']]], $assets);
+        $stretch = new Design([...$base->document, 'layers' => [$layer]], $assets);
+        $renderer = new Renderer;
+        $image = imagecreatefromstring($renderer->png($cover));
+        foreach ([[5, 5], [60, 60], [115, 115]] as [$x, $y]) {
+            $pixel = imagecolorsforindex($image, imagecolorat($image, $x, $y));
+            expect([$pixel['red'], $pixel['green'], $pixel['blue']])->toBe([0, 255, 0]);
+        }
+        imagedestroy($image);
+        $image = imagecreatefromstring($renderer->png($stretch));
+        $pixel = imagecolorsforindex($image, imagecolorat($image, 5, 5));
+        expect([$pixel['red'], $pixel['green'], $pixel['blue']])->toBe([255, 0, 0]);
+        imagedestroy($image);
+        expect($renderer->svg($cover))->toContain('preserveAspectRatio="xMidYMid slice"');
+        expect($renderer->svg($stretch))->toContain('preserveAspectRatio="none"');
+    } finally {
+        unlink($path);
+    }
+})->with([false, true]);

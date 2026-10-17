@@ -84,7 +84,7 @@ final class Renderer
                 'circle' => '<ellipse cx="'.($x + $w / 2).'" cy="'.($y + $h / 2).'" rx="'.($w / 2).'" ry="'.($h / 2).'" fill="'.$color.'"/>',
                 'line' => '<line x1="'.$x.'" y1="'.$y.'" x2="'.($x + $w).'" y2="'.($y + $h).'" stroke="'.$color.'"/>',
                 'text' => '<text x="'.$x.'" y="'.$layer['baseline'].'" font-size="'.$layer['size'].'" fill="'.$color.'">'.$this->escape($layer['text']).'</text>',
-                'image' => '<image x="'.$x.'" y="'.$y.'" width="'.$w.'" height="'.$h.'" preserveAspectRatio="none" href="'.$this->imageData($design, $layer['asset']).'"/>',
+                'image' => '<image x="'.$x.'" y="'.$y.'" width="'.$w.'" height="'.$h.'" preserveAspectRatio="'.(($layer['fit'] ?? 'stretch') === 'cover' ? 'xMidYMid slice' : 'none').'" href="'.$this->imageData($design, $layer['asset']).'"/>',
             };
         }
 
@@ -134,7 +134,20 @@ final class Renderer
                     if (! $artwork instanceof GdImage) {
                         throw new RuntimeException('Cannot decode Stamp artwork.');
                     }
-                    imagecopyresampled($image, $artwork, $x, $y, 0, 0, $w, $h, imagesx($artwork), imagesy($artwork));
+                    $sourceWidth = imagesx($artwork);
+                    $sourceHeight = imagesy($artwork);
+                    $sourceX = 0;
+                    $sourceY = 0;
+                    if (($layer['fit'] ?? 'stretch') === 'cover') {
+                        $scale = max($w / $sourceWidth, $h / $sourceHeight);
+                        $cropWidth = max(1, (int) round($w / $scale));
+                        $cropHeight = max(1, (int) round($h / $scale));
+                        $sourceX = (int) floor(($sourceWidth - $cropWidth) / 2);
+                        $sourceY = (int) floor(($sourceHeight - $cropHeight) / 2);
+                        $sourceWidth = $cropWidth;
+                        $sourceHeight = $cropHeight;
+                    }
+                    imagecopyresampled($image, $artwork, $x, $y, $sourceX, $sourceY, $w, $h, $sourceWidth, $sourceHeight);
                     imagedestroy($artwork);
                     break;
             }
