@@ -1,0 +1,154 @@
+{
+    "schema": "x-stamp/1",
+    "id": "steampunk",
+    "revision": 1,
+    "name": "Steampunk",
+    "width": 1200,
+    "height": 630,
+    "background": "#F5E6C8",
+    "foreground": "#3F2A14",
+    "font": "assets/fonts/NotoSans.ttf",
+    "layers": [
+        {
+            "type": "rectangle",
+            "x": 24,
+            "y": 24,
+            "width": 1152,
+            "height": 582,
+            "color": "#A16207",
+            "radius": 24
+        },
+        {
+            "type": "rectangle",
+            "x": 29,
+            "y": 29,
+            "width": 1142,
+            "height": 572,
+            "color": "#F5E6C8",
+            "radius": 20
+        },
+        {
+            "type": "circle",
+            "x": 975,
+            "y": 70,
+            "width": 90,
+            "height": 90,
+            "color": "#A16207"
+        },
+        {
+            "type": "circle",
+            "x": 983,
+            "y": 78,
+            "width": 74,
+            "height": 74,
+            "color": "#F5E6C8"
+        },
+        {
+            "type": "circle",
+            "x": 1050,
+            "y": 155,
+            "width": 65,
+            "height": 65,
+            "color": "#A16207"
+        },
+        {
+            "type": "circle",
+            "x": 1058,
+            "y": 163,
+            "width": 49,
+            "height": 49,
+            "color": "#F5E6C8"
+        },
+        {
+            "type": "circle",
+            "x": 940,
+            "y": 245,
+            "width": 45,
+            "height": 45,
+            "color": "#A16207"
+        },
+        {
+            "type": "circle",
+            "x": 948,
+            "y": 253,
+            "width": 29,
+            "height": 29,
+            "color": "#F5E6C8"
+        },
+        {
+            "type": "text",
+            "x": 65,
+            "y": 65,
+            "width": 800,
+            "height": 60,
+            "size": 32,
+            "color": "#3F2A14",
+            "slot": "brand",
+            "max_lines": 2
+        },
+        {
+            "type": "text",
+            "x": 65,
+            "y": 155,
+            "width": 800,
+            "height": 100,
+            "size": 72,
+            "color": "#3F2A14",
+            "slot": "amount",
+            "max_lines": 2
+        },
+        {
+            "type": "text",
+            "x": 65,
+            "y": 280,
+            "width": 790,
+            "height": 70,
+            "size": 28,
+            "color": "#3F2A14",
+            "slot": "recipient",
+            "max_lines": 2
+        },
+        {
+            "type": "text",
+            "x": 65,
+            "y": 355,
+            "width": 790,
+            "height": 100,
+            "size": 26,
+            "color": "#3F2A14",
+            "slot": "purpose",
+            "max_lines": 2
+        },
+        {
+            "type": "text",
+            "x": 65,
+            "y": 485,
+            "width": 790,
+            "height": 50,
+            "size": 20,
+            "color": "#3F2A14",
+            "slot": "expiry",
+            "max_lines": 2
+        },
+        {
+            "type": "text",
+            "x": 65,
+            "y": 540,
+            "width": 790,
+            "height": 45,
+            "size": 18,
+            "color": "#3F2A14",
+            "slot": "instructions",
+            "max_lines": 2
+        },
+        {
+            "type": "rectangle",
+            "x": 930,
+            "y": 365,
+            "width": 215,
+            "height": 215,
+            "color": "#FFFFFF",
+            "radius": 10
+        }
+    ]
+}

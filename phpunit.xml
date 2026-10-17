@@ -1,0 +1,1 @@
+<phpunit bootstrap="vendor/autoload.php" colors="true"><testsuites><testsuite name="Stamp"><directory>tests</directory></testsuite></testsuites></phpunit>

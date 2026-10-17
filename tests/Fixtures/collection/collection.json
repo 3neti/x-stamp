@@ -1,0 +1,16 @@
+{
+    "schema": "x-stamp-collection/1",
+    "id": "3neti-system",
+    "designs": [
+        "designs/steampunk/1/stamp.json",
+        "designs/cats/1/stamp.json",
+        "designs/valentine/1/stamp.json"
+    ],
+    "files": {
+        "assets/fonts/NotoSans.ttf": "bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d",
+        "assets/fonts/OFL.txt": "e2e177a32561584d4fc13aaa3cd8e53758a12910f013fe9ca125419111722029",
+        "designs/cats/1/stamp.json": "35f316a1f5f7a790363fae3022175bcebfa1b549eee652199ea67bf704608414",
+        "designs/steampunk/1/stamp.json": "fb97c7f85e27e08b0ab36de261252ea77c59a408c038fef52d47f8c2c242523f",
+        "designs/valentine/1/stamp.json": "e7d4928da3232a5c0cfe238633e084797d947acf3a16b65ff41507a52b3cdd28"
+    }
+}
