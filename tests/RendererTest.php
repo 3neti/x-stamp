@@ -90,3 +90,38 @@ it('keeps the registered document unchanged when composing a layout variant', fu
     expect($variant->document['layers'][0]['color'])->toBe('#000000');
     expect($design->document['layers'][0]['color'])->toBe('#A16207');
 });
+
+it('wraps at word boundaries instead of splitting a word across lines', function () {
+    $original = stampCatalog()->resolve('steampunk', 1);
+    $layers = $original->document['layers'];
+    foreach ($layers as &$layer) {
+        if (($layer['slot'] ?? null) === 'purpose') {
+            $layer['width'] = 120;
+        }
+    }
+    unset($layer);
+    $layout = (new Renderer)->layout($original->withLayers($layers), ['purpose' => 'Words go around']);
+    $text = array_values(array_filter($layout, fn ($layer) => ($layer['slot'] ?? null) === 'purpose'));
+    expect(array_column($text, 'text'))->toBe(['Words go', 'around']);
+});
+
+it('preserves explicit sentence line breaks in every rendered format', function () {
+    $renderer = new Renderer;
+    $design = stampCatalog()->resolve('steampunk', 1);
+    $slots = ['purpose' => "Money should adapt to people.\nNot the other way around."];
+    $text = array_values(array_filter($renderer->layout($design, $slots), fn ($layer) => ($layer['slot'] ?? null) === 'purpose'));
+    expect(array_column($text, 'text'))->toBe(['Money should adapt to people.', 'Not the other way around.']);
+    expect($text[1]['baseline'])->toBeGreaterThan($text[0]['baseline']);
+    expect($renderer->svg($design, $slots))->toContain('>Money should adapt to people.</text>', '>Not the other way around.</text>');
+    expect(getimagesizefromstring($renderer->png($design, $slots))[0])->toBe(1200);
+});
+
+it('bounds an unbreakable token with an ellipsis instead of overflowing its text box', function () {
+    $design = stampCatalog()->resolve('steampunk', 1);
+    $layout = (new Renderer)->layout($design, ['purpose' => str_repeat('W', 200)]);
+    $text = array_values(array_filter($layout, fn ($layer) => ($layer['slot'] ?? null) === 'purpose'));
+    expect($text)->toHaveCount(1);
+    expect($text[0]['text'])->toEndWith('…');
+    $box = imagettfbbox($text[0]['size'] * .75, 0, $design->asset($design->document['font']), $text[0]['text']);
+    expect(abs($box[2] - $box[0]))->toBeLessThanOrEqual($text[0]['width']);
+});

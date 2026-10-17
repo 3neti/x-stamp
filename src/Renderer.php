@@ -29,23 +29,33 @@ final class Renderer
             $limit = min($layer['max_lines'] ?? 2, max(1, (int) floor($layer['height'] / $lineHeight)));
             $lines = [];
             $line = '';
-            foreach (mb_str_split(preg_replace('/\s+/u', ' ', trim($text))) as $character) {
-                $next = $line.$character;
-                if ($this->textWidth($design, $next, $size) > $layer['width'] && $line !== '') {
-                    $lines[] = $line;
-                    $line = $character;
-                } else {
-                    $line = $next;
+            foreach (preg_split('/\R/u', trim($text)) as $paragraph) {
+                $line = '';
+                foreach (preg_split('/\s+/u', trim($paragraph), -1, PREG_SPLIT_NO_EMPTY) as $word) {
+                    $next = $line === '' ? $word : $line.' '.$word;
+                    if ($this->textWidth($design, $next, $size) > $layer['width'] && $line !== '') {
+                        $lines[] = $line;
+                        $line = $word;
+                    } else {
+                        $line = $next;
+                    }
+                    if ($this->textWidth($design, $line, $size) > $layer['width']) {
+                        while ($line !== '' && $this->textWidth($design, $line.'…', $size) > $layer['width']) {
+                            $line = mb_substr($line, 0, -1);
+                        }
+                        $line .= '…';
+                    }
                 }
-            }
-            if ($line !== '') {
-                $lines[] = $line;
+                if ($line !== '' || $paragraph !== '') {
+                    $lines[] = $line;
+                }
             }
             if (count($lines) > $limit) {
                 $lines = array_slice($lines, 0, $limit);
                 $last = array_pop($lines);
                 while ($last !== '' && $this->textWidth($design, $last.'…', $size) > $layer['width']) {
-                    $last = mb_substr($last, 0, -1);
+                    $space = mb_strrpos($last, ' ');
+                    $last = $space === false ? mb_substr($last, 0, -1) : mb_substr($last, 0, $space);
                 }
                 $lines[] = $last.'…';
             }
