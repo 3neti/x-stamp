@@ -12,6 +12,9 @@ final class Catalog
     /** @var array<string, Design> */
     private array $designs = [];
 
+    /** @var array<string, true> */
+    private array $retiredDesigns = [];
+
     public function load(string $directory): void
     {
         $root = realpath($directory);
@@ -50,7 +53,13 @@ final class Catalog
             }
             $pending[$key] = $design;
         }
+        $retired = array_fill_keys($manifest['retired_designs'] ?? [], true);
+        $ids = array_map(static fn (Design $design): string => $design->id(), $pending);
+        if (array_diff(array_keys($retired), $ids) !== []) {
+            throw new InvalidArgumentException('A retired Stamp design must belong to its collection.');
+        }
         $this->designs += $pending;
+        $this->retiredDesigns += $retired;
     }
 
     public function resolve(string $id, int $revision): Design
@@ -62,5 +71,11 @@ final class Catalog
     public function all(): array
     {
         return array_values($this->designs);
+    }
+
+    /** @return list<Design> */
+    public function selectable(): array
+    {
+        return array_values(array_filter($this->designs, fn (Design $design): bool => ! isset($this->retiredDesigns[$design->id()])));
     }
 }

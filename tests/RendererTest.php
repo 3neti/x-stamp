@@ -301,3 +301,35 @@ it('anchors cover artwork at the selected top or bottom edge in PNG and SVG', fu
         imagedestroy($image);
     }
 });
+
+it('hides retired designs from choices while retaining immutable rendering and archival enumeration', function () {
+    $directory = sys_get_temp_dir().'/stamp-retirement-'.bin2hex(random_bytes(6));
+    mkdir($directory);
+    $original = stampCatalog()->resolve('valentine', 1);
+    $document = $original->document;
+    $document['font'] = 'font.ttf';
+    $document['layers'] = array_values(array_filter($document['layers'], fn (array $layer): bool => $layer['type'] !== 'image'));
+    file_put_contents($directory.'/stamp.json', json_encode($document));
+    copy($original->asset($original->document['font']), $directory.'/font.ttf');
+    $manifest = ['schema' => 'x-stamp-collection/1', 'id' => 'test', 'designs' => ['stamp.json'], 'files' => ['stamp.json' => hash_file('sha256', $directory.'/stamp.json'), 'font.ttf' => hash_file('sha256', $directory.'/font.ttf')], 'retired_designs' => ['valentine']];
+    file_put_contents($directory.'/collection.json', json_encode($manifest));
+    try {
+        $catalog = new Catalog;
+        $catalog->load($directory);
+        expect($catalog->selectable())->toBeEmpty();
+        expect($catalog->all())->toHaveCount(1);
+        $saved = $catalog->resolve('valentine', 1);
+        expect($saved->id())->toBe('valentine');
+        expect(getimagesizefromstring((new Renderer)->png($saved, ['amount' => '₱500']))[0])->toBe(1200);
+        $manifest['retired_designs'] = ['missing'];
+        file_put_contents($directory.'/collection.json', json_encode($manifest));
+        $invalid = new Catalog;
+        expect(fn () => $invalid->load($directory))->toThrow(InvalidArgumentException::class, 'belong to its collection');
+        expect($invalid->all())->toBeEmpty();
+    } finally {
+        unlink($directory.'/collection.json');
+        unlink($directory.'/stamp.json');
+        unlink($directory.'/font.ttf');
+        rmdir($directory);
+    }
+});
