@@ -132,7 +132,8 @@
                     "fit": {
                         "enum": [
                             "stretch",
-                            "cover"
+                            "cover",
+                            "contain"
                         ]
                     }
                 }

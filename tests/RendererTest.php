@@ -160,3 +160,51 @@ it('fills an image box with a centered crop while keeping legacy stretch behavio
         unlink($path);
     }
 })->with([false, true]);
+
+function runtimeImageDesign(): Design
+{
+    $base = stampCatalog()->resolve('cats', 1);
+
+    return $base->withLayers([[
+        'type' => 'image', 'slot' => 'provider_logo', 'fit' => 'contain',
+        'x' => 0, 'y' => 0, 'width' => 100, 'height' => 100, 'color' => '#000000',
+    ]]);
+}
+
+it('renders optional runtime images without stretching or filling their transparent pixels', function () {
+    $design = runtimeImageDesign();
+    $source = imagecreatetruecolor(80, 40);
+    imagealphablending($source, false);
+    imagesavealpha($source, true);
+    imagefill($source, 0, 0, imagecolorallocatealpha($source, 0, 0, 0, 127));
+    imagefilledrectangle($source, 20, 0, 59, 39, imagecolorallocate($source, 0, 255, 0));
+    ob_start();
+    imagepng($source);
+    $bytes = ob_get_clean();
+    imagedestroy($source);
+    $renderer = new Renderer;
+
+    $image = imagecreatefromstring($renderer->png($design, [], ['provider_logo' => $bytes]));
+    $background = imagecolorsforindex($image, imagecolorat($image, 5, 50));
+    expect([$background['red'], $background['green'], $background['blue']])->toBe([245, 239, 230]);
+    $center = imagecolorsforindex($image, imagecolorat($image, 50, 50));
+    expect([$center['red'], $center['green'], $center['blue']])->toBe([0, 255, 0]);
+    expect(imagecolorat($image, 50, 5))->toBe(imagecolorat($image, 5, 50));
+    imagedestroy($image);
+    expect($renderer->svg($design, [], ['provider_logo' => $bytes]))->toContain('xMidYMid meet', 'data:image/png;base64,');
+    expect($renderer->html($design, [], ['provider_logo' => $bytes]))->toContain(base64_encode($bytes));
+    expect($renderer->svg($design))->not->toContain('<image');
+    expect($renderer->layout($design))->toBeEmpty();
+});
+
+it('rejects unsafe runtime image input without reading files or URLs', function (string $input) {
+    (new Renderer)->png(runtimeImageDesign(), [], ['provider_logo' => $input]);
+})->with(['https://example.com/logo.png', '/etc/passwd', '<svg><script/></svg>', str_repeat('x', 2000001)])
+    ->throws(InvalidArgumentException::class);
+
+it('rejects ambiguous bundled and runtime image sources', function () {
+    $base = runtimeImageDesign();
+    $layers = $base->document['layers'];
+    $layers[0]['asset'] = 'logo.png';
+    $base->withLayers($layers);
+})->throws(InvalidArgumentException::class);

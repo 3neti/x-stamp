@@ -10,11 +10,21 @@ use RuntimeException;
 
 final class Renderer
 {
-    /** @param array<string, string> $slots @return list<array<string, mixed>> */
-    public function layout(Design $design, array $slots = []): array
+    /** @param array<string, string> $slots @param array<string, string> $images @return list<array<string, mixed>> */
+    public function layout(Design $design, array $slots = [], array $images = []): array
     {
         $layers = [];
         foreach ($design->document['layers'] as $layer) {
+            if ($layer['type'] === 'image' && isset($layer['slot'])) {
+                $contents = $images[$layer['slot']] ?? null;
+                if ($contents === null) {
+                    continue;
+                }
+                $this->validateImage($contents);
+                $layers[] = [...$layer, 'contents' => $contents];
+
+                continue;
+            }
             if ($layer['type'] !== 'text') {
                 $layers[] = $layer;
 
@@ -67,13 +77,13 @@ final class Renderer
         return $layers;
     }
 
-    /** @param array<string, string> $slots */
-    public function svg(Design $design, array $slots = []): string
+    /** @param array<string, string> $slots @param array<string, string> $images */
+    public function svg(Design $design, array $slots = [], array $images = []): string
     {
         $doc = $design->document;
         $font = base64_encode(file_get_contents($design->asset($doc['font'])));
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'.$doc['width'].'" height="'.$doc['height'].'" viewBox="0 0 '.$doc['width'].' '.$doc['height'].'" role="img"><title>'.$this->escape($doc['name']).'</title><defs><style>@font-face{font-family:Stamp;src:url(data:font/ttf;base64,'.$font.')}text{font-family:Stamp}</style></defs><rect width="100%" height="100%" fill="'.$doc['background'].'"/>';
-        foreach ($this->layout($design, $slots) as $layer) {
+        foreach ($this->layout($design, $slots, $images) as $layer) {
             $x = $layer['x'];
             $y = $layer['y'];
             $w = $layer['width'];
@@ -84,21 +94,23 @@ final class Renderer
                 'circle' => '<ellipse cx="'.($x + $w / 2).'" cy="'.($y + $h / 2).'" rx="'.($w / 2).'" ry="'.($h / 2).'" fill="'.$color.'"/>',
                 'line' => '<line x1="'.$x.'" y1="'.$y.'" x2="'.($x + $w).'" y2="'.($y + $h).'" stroke="'.$color.'"/>',
                 'text' => '<text x="'.$x.'" y="'.$layer['baseline'].'" font-size="'.$layer['size'].'" fill="'.$color.'">'.$this->escape($layer['text']).'</text>',
-                'image' => '<image x="'.$x.'" y="'.$y.'" width="'.$w.'" height="'.$h.'" preserveAspectRatio="'.(($layer['fit'] ?? 'stretch') === 'cover' ? 'xMidYMid slice' : 'none').'" href="'.$this->imageData($design, $layer['asset']).'"/>',
+                'image' => '<image x="'.$x.'" y="'.$y.'" width="'.$w.'" height="'.$h.'" preserveAspectRatio="'.match ($layer['fit'] ?? 'stretch') {
+                    'cover' => 'xMidYMid slice', 'contain' => 'xMidYMid meet', default => 'none'
+                }.'" href="'.$this->imageData($design, $layer).'"/>',
             };
         }
 
         return $svg.'</svg>';
     }
 
-    /** @param array<string, string> $slots */
-    public function html(Design $design, array $slots = []): string
+    /** @param array<string, string> $slots @param array<string, string> $images */
+    public function html(Design $design, array $slots = [], array $images = []): string
     {
-        return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src &apos;none&apos;; img-src data:; font-src data:; style-src &apos;unsafe-inline&apos;; base-uri &apos;none&apos;; form-action &apos;none&apos;"><style>html,body{margin:0;background:'.$design->document['background'].';color-scheme:only light}svg{display:block;width:100%;height:auto}</style></head><body>'.$this->svg($design, $slots).'</body></html>';
+        return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src &apos;none&apos;; img-src data:; font-src data:; style-src &apos;unsafe-inline&apos;; base-uri &apos;none&apos;; form-action &apos;none&apos;"><style>html,body{margin:0;background:'.$design->document['background'].';color-scheme:only light}svg{display:block;width:100%;height:auto}</style></head><body>'.$this->svg($design, $slots, $images).'</body></html>';
     }
 
-    /** @param array<string, string> $slots */
-    public function png(Design $design, array $slots = []): string
+    /** @param array<string, string> $slots @param array<string, string> $images */
+    public function png(Design $design, array $slots = [], array $images = []): string
     {
         $doc = $design->document;
         $image = imagecreatetruecolor($doc['width'], $doc['height']);
@@ -106,7 +118,7 @@ final class Renderer
             throw new RuntimeException('Cannot allocate Stamp canvas.');
         }
         imagefill($image, 0, 0, $this->color($image, $doc['background']));
-        foreach ($this->layout($design, $slots) as $layer) {
+        foreach ($this->layout($design, $slots, $images) as $layer) {
             $x = (int) $layer['x'];
             $y = (int) $layer['y'];
             $w = (int) $layer['width'];
@@ -130,7 +142,7 @@ final class Renderer
                 case 'text': imagettftext($image, $layer['size'] * 0.75, 0, $x, (int) $layer['baseline'], $color, $design->asset($doc['font']), $layer['text']);
                     break;
                 case 'image':
-                    $artwork = imagecreatefromstring(file_get_contents($design->asset($layer['asset'])));
+                    $artwork = imagecreatefromstring($layer['contents'] ?? file_get_contents($design->asset($layer['asset'])));
                     if (! $artwork instanceof GdImage) {
                         throw new RuntimeException('Cannot decode Stamp artwork.');
                     }
@@ -146,6 +158,15 @@ final class Renderer
                         $sourceY = (int) floor(($sourceHeight - $cropHeight) / 2);
                         $sourceWidth = $cropWidth;
                         $sourceHeight = $cropHeight;
+                    }
+                    if (($layer['fit'] ?? 'stretch') === 'contain') {
+                        $scale = min($w / $sourceWidth, $h / $sourceHeight);
+                        $targetWidth = max(1, (int) round($sourceWidth * $scale));
+                        $targetHeight = max(1, (int) round($sourceHeight * $scale));
+                        $x += (int) floor(($w - $targetWidth) / 2);
+                        $y += (int) floor(($h - $targetHeight) / 2);
+                        $w = $targetWidth;
+                        $h = $targetHeight;
                     }
                     imagecopyresampled($image, $artwork, $x, $y, $sourceX, $sourceY, $w, $h, $sourceWidth, $sourceHeight);
                     imagedestroy($artwork);
@@ -172,11 +193,35 @@ final class Renderer
         return htmlspecialchars($value, ENT_QUOTES | ENT_XML1, 'UTF-8');
     }
 
-    private function imageData(Design $design, string $name): string
+    /** @param array<string, mixed> $layer */
+    private function imageData(Design $design, array $layer): string
     {
-        $path = $design->asset($name);
+        $contents = $layer['contents'] ?? file_get_contents($design->asset($layer['asset']));
+        $info = getimagesizefromstring($contents);
 
-        return 'data:'.image_type_to_mime_type(getimagesize($path)[2]).';base64,'.base64_encode(file_get_contents($path));
+        return 'data:'.image_type_to_mime_type($info[2]).';base64,'.base64_encode($contents);
+    }
+
+    private function validateImage(mixed $contents): void
+    {
+        if (! is_string($contents) || $contents === '' || strlen($contents) > 2000000) {
+            throw new InvalidArgumentException('Runtime Stamp images must be bounded image bytes.');
+        }
+        $supportedSignature = str_starts_with($contents, "\x89PNG\r\n\x1a\n")
+            || str_starts_with($contents, "\xff\xd8\xff")
+            || (str_starts_with($contents, 'RIFF') && substr($contents, 8, 4) === 'WEBP');
+        if (! $supportedSignature) {
+            throw new InvalidArgumentException('Runtime Stamp images must be PNG, JPEG, or WebP bytes.');
+        }
+        $info = @getimagesizefromstring($contents);
+        if ($info === false || ! in_array($info[2], [IMAGETYPE_PNG, IMAGETYPE_JPEG, IMAGETYPE_WEBP], true) || $info[0] * $info[1] > 16000000) {
+            throw new InvalidArgumentException('Runtime Stamp images must be bounded PNG, JPEG, or WebP images.');
+        }
+        $image = @imagecreatefromstring($contents);
+        if (! $image instanceof GdImage) {
+            throw new InvalidArgumentException('Cannot decode runtime Stamp image.');
+        }
+        imagedestroy($image);
     }
 
     private function color(GdImage $image, string $hex): int

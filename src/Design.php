@@ -25,6 +25,13 @@ final readonly class Design
             if ($document['width'] < $layer['x'] + $layer['width'] || $document['height'] < $layer['y'] + $layer['height']) {
                 throw new InvalidArgumentException('A Stamp layer exceeds the canvas.');
             }
+            if ($layer['type'] === 'image' && isset($layer['slot'])) {
+                if (isset($layer['asset'])) {
+                    throw new InvalidArgumentException('An image layer must use either an asset or a runtime slot.');
+                }
+
+                continue;
+            }
             if ($layer['type'] === 'image') {
                 $path = $this->asset($layer['asset'] ?? '');
                 $info = @getimagesize($path);
