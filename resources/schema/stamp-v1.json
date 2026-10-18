@@ -135,7 +135,75 @@
                             "cover",
                             "contain"
                         ]
+                    },
+                    "opacity": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                    },
+                    "anchor": {
+                        "enum": [
+                            "top",
+                            "center",
+                            "bottom"
+                        ]
                     }
+                }
+            }
+        },
+        "customization": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "controls",
+                "defaults",
+                "artwork_layer"
+            ],
+            "properties": {
+                "controls": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                        "enum": [
+                            "crop",
+                            "darkening",
+                            "tagline",
+                            "qr"
+                        ]
+                    }
+                },
+                "defaults": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "preset": {
+                            "enum": [
+                                "clear",
+                                "soft",
+                                "transparent"
+                            ]
+                        },
+                        "crop": {
+                            "enum": [
+                                "top",
+                                "center",
+                                "bottom"
+                            ]
+                        },
+                        "darkening": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 40
+                        },
+                        "show_tagline": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "artwork_layer": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 99
                 }
             }
         }

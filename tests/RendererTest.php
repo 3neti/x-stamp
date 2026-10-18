@@ -1,7 +1,9 @@
 <?php
 
+use LBHurtado\XStamp\Appearance;
 use LBHurtado\XStamp\Catalog;
 use LBHurtado\XStamp\Design;
+use LBHurtado\XStamp\QrPresentation;
 use LBHurtado\XStamp\Renderer;
 
 function stampCatalog(): Catalog
@@ -208,3 +210,94 @@ it('rejects ambiguous bundled and runtime image sources', function () {
     $layers[0]['asset'] = 'logo.png';
     $base->withLayers($layers);
 })->throws(InvalidArgumentException::class);
+
+function editableStampDesign(): Design
+{
+    $base = stampCatalog()->resolve('cats', 1);
+    $document = [...$base->document, 'customization' => [
+        'controls' => ['crop', 'darkening', 'tagline', 'qr'], 'artwork_layer' => 0,
+        'defaults' => ['preset' => 'transparent', 'darkening' => 0, 'crop' => 'center', 'show_tagline' => true],
+    ]];
+    $document['layers'] = [['type' => 'image', 'slot' => 'photo', 'fit' => 'cover', 'x' => 0, 'y' => 0, 'width' => 1200, 'height' => 630, 'color' => '#000000']];
+
+    return new Design($document, [$base->document['font'] => $base->asset($base->document['font'])]);
+}
+
+it('resolves portable presets and preserves frozen values after configuration changes', function () {
+    $appearance = new Appearance;
+    $design = editableStampDesign();
+    $transparent = $appearance->resolve($design);
+    expect($transparent['qr'])->toBe(['paper' => .5, 'logo_backing' => .3, 'ink' => .9, 'frame' => .3]);
+    expect($appearance->resolve($design, ['preset' => 'clear'])['qr']['paper'])->toBe(1.0);
+    expect($appearance->resolve($design, [], ['presets' => ['transparent' => ['paper' => .8]]], $transparent['qr']))->toBe($transparent);
+    $changed = $appearance->apply($design, $appearance->resolve($design, ['crop' => 'bottom', 'darkening' => 40]));
+    expect($changed->document['layers'][0]['anchor'])->toBe('bottom');
+    expect($changed->document['layers'][1]['opacity'])->toBe(.4);
+    expect($design->document['layers'])->toHaveCount(1);
+});
+
+it('rejects unsupported or invalid appearance options', function (array $options) {
+    (new Appearance)->resolve(editableStampDesign(), $options);
+})->with([[['preset' => 'unsafe']], [['preset' => []]], [['darkening' => 41]], [['crop' => 'sideways']], [['show_tagline' => 'false']], [['arbitrary_css' => 'bad']]])->throws(InvalidArgumentException::class);
+
+it('keeps unsupported controls out of historical templates', function () {
+    (new Appearance)->resolve(stampCatalog()->resolve('cats', 1), ['darkening' => 10]);
+})->throws(InvalidArgumentException::class);
+
+it('renders opacity equally in portable PNG and SVG layers', function () {
+    $base = stampCatalog()->resolve('cats', 1);
+    $design = $base->withLayers([['type' => 'rectangle', 'x' => 0, 'y' => 0, 'width' => 100, 'height' => 100, 'color' => '#000000', 'opacity' => .4]]);
+    $renderer = new Renderer;
+    $image = imagecreatefromstring($renderer->png($design));
+    $pixel = imagecolorsforindex($image, imagecolorat($image, 10, 10));
+    expect($pixel['red'])->toBe(147);
+    expect($renderer->svg($design))->toContain('opacity="0.4"');
+    imagedestroy($image);
+});
+
+it('composes portable QR opacity and bounds without changing the original design', function () {
+    $base = stampCatalog()->resolve('cats', 1);
+    $source = imagecreatetruecolor(256, 256);
+    imagefill($source, 0, 0, imagecolorallocate($source, 255, 255, 255));
+    imagefilledrectangle($source, 10, 10, 30, 30, imagecolorallocate($source, 0, 0, 0));
+    ob_start();
+    imagepng($source);
+    $bytes = ob_get_clean();
+    imagedestroy($source);
+    $renderer = new QrPresentation;
+    $png = $renderer->png($bytes, '#F8EDD4', '#DDBB84', Appearance::Presets['transparent']);
+    $image = imagecreatefromstring($png);
+    $frame = imagecolorsforindex($image, imagecolorat($image, 0, 0));
+    expect($frame['alpha'])->toBe(89);
+    $paper = imagecolorsforindex($image, imagecolorat($image, 12, 12));
+    expect($paper['alpha'])->toBeLessThan(89);
+    $composed = $renderer->compose($base, $bytes, 'ABCD', 'both', 'top_left', '#F8EDD4', '#DDBB84', Appearance::Presets['clear']);
+    expect($composed['bounds'])->toBe(['x' => 54, 'y' => 54, 'width' => 190, 'height' => 226]);
+    expect($composed['images'])->toHaveKey('stamp_marker_qr');
+    expect($base->slots())->not->toContain('stamp_marker_qr');
+    imagedestroy($image);
+});
+
+it('rejects non-PNG or oversized QR inputs without external reads', function (string $bytes) {
+    (new QrPresentation)->png($bytes, '#FFFFFF', '#FFFFFF', Appearance::Presets['clear']);
+})->with(['https://example.test/qr.png', '<svg/>', str_repeat('x', 2000001)])->throws(InvalidArgumentException::class);
+
+it('anchors cover artwork at the selected top or bottom edge in PNG and SVG', function () {
+    $source = imagecreatetruecolor(100, 300);
+    imagefill($source, 0, 0, imagecolorallocate($source, 255, 0, 0));
+    imagefilledrectangle($source, 0, 200, 99, 299, imagecolorallocate($source, 0, 0, 255));
+    ob_start();
+    imagepng($source);
+    $bytes = ob_get_clean();
+    imagedestroy($source);
+    $appearance = new Appearance;
+    $renderer = new Renderer;
+    foreach (['top' => [255, 0, 0], 'bottom' => [0, 0, 255]] as $anchor => $rgb) {
+        $design = $appearance->apply(editableStampDesign(), $appearance->resolve(editableStampDesign(), ['crop' => $anchor]));
+        $image = imagecreatefromstring($renderer->png($design, [], ['photo' => $bytes]));
+        $pixel = imagecolorsforindex($image, imagecolorat($image, 600, 315));
+        expect([$pixel['red'], $pixel['green'], $pixel['blue']])->toBe($rgb);
+        expect($renderer->svg($design, [], ['photo' => $bytes]))->toContain($anchor === 'top' ? 'xMidYMin slice' : 'xMidYMax slice');
+        imagedestroy($image);
+    }
+});

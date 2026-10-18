@@ -89,15 +89,18 @@ final class Renderer
             $w = $layer['width'];
             $h = $layer['height'];
             $color = $layer['color'];
-            $svg .= match ($layer['type']) {
+            $node = match ($layer['type']) {
                 'rectangle' => '<rect x="'.$x.'" y="'.$y.'" width="'.$w.'" height="'.$h.'" rx="'.($layer['radius'] ?? 0).'" fill="'.$color.'"/>',
                 'circle' => '<ellipse cx="'.($x + $w / 2).'" cy="'.($y + $h / 2).'" rx="'.($w / 2).'" ry="'.($h / 2).'" fill="'.$color.'"/>',
                 'line' => '<line x1="'.$x.'" y1="'.$y.'" x2="'.($x + $w).'" y2="'.($y + $h).'" stroke="'.$color.'"/>',
                 'text' => '<text x="'.$x.'" y="'.$layer['baseline'].'" font-size="'.$layer['size'].'" fill="'.$color.'">'.$this->escape($layer['text']).'</text>',
                 'image' => '<image x="'.$x.'" y="'.$y.'" width="'.$w.'" height="'.$h.'" preserveAspectRatio="'.match ($layer['fit'] ?? 'stretch') {
-                    'cover' => 'xMidYMid slice', 'contain' => 'xMidYMid meet', default => 'none'
+                    'cover' => match ($layer['anchor'] ?? 'center') {
+                        'top' => 'xMidYMin slice', 'bottom' => 'xMidYMax slice', default => 'xMidYMid slice'
+                    }, 'contain' => 'xMidYMid meet', default => 'none'
                 }.'" href="'.$this->imageData($design, $layer).'"/>',
             };
+            $svg .= '<g opacity="'.($layer['opacity'] ?? 1).'">'.$node.'</g>';
         }
 
         return $svg.'</svg>';
@@ -124,6 +127,11 @@ final class Renderer
             $w = (int) $layer['width'];
             $h = (int) $layer['height'];
             $color = $this->color($image, $layer['color']);
+            $underlay = null;
+            if (($layer['opacity'] ?? 1) < 1) {
+                $underlay = imagecreatetruecolor($w + 1, $h + 1);
+                imagecopy($underlay, $image, 0, 0, $x, $y, $w + 1, $h + 1);
+            }
             switch ($layer['type']) {
                 case 'rectangle':
                     $radius = (int) min($layer['radius'] ?? 0, $w / 2, $h / 2);
@@ -155,7 +163,11 @@ final class Renderer
                         $cropWidth = max(1, (int) round($w / $scale));
                         $cropHeight = max(1, (int) round($h / $scale));
                         $sourceX = (int) floor(($sourceWidth - $cropWidth) / 2);
-                        $sourceY = (int) floor(($sourceHeight - $cropHeight) / 2);
+                        $sourceY = match ($layer['anchor'] ?? 'center') {
+                            'top' => 0,
+                            'bottom' => $sourceHeight - $cropHeight,
+                            default => (int) floor(($sourceHeight - $cropHeight) / 2),
+                        };
                         $sourceWidth = $cropWidth;
                         $sourceHeight = $cropHeight;
                     }
@@ -171,6 +183,10 @@ final class Renderer
                     imagecopyresampled($image, $artwork, $x, $y, $sourceX, $sourceY, $w, $h, $sourceWidth, $sourceHeight);
                     imagedestroy($artwork);
                     break;
+            }
+            if ($underlay instanceof GdImage) {
+                imagecopymerge($image, $underlay, (int) $layer['x'], (int) $layer['y'], 0, 0, (int) $layer['width'] + 1, (int) $layer['height'] + 1, (int) round(100 * (1 - $layer['opacity'])));
+                imagedestroy($underlay);
             }
         }
         ob_start();
