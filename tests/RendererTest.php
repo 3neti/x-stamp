@@ -3,6 +3,7 @@
 use LBHurtado\XStamp\Appearance;
 use LBHurtado\XStamp\Catalog;
 use LBHurtado\XStamp\Design;
+use LBHurtado\XStamp\IdentifierPresentation;
 use LBHurtado\XStamp\QrPresentation;
 use LBHurtado\XStamp\Renderer;
 
@@ -333,3 +334,33 @@ it('hides retired designs from choices while retaining immutable rendering and a
         rmdir($directory);
     }
 });
+
+it('renders branded one-line identifiers and labels only draft examples as samples', function () {
+    $design = stampCatalog()->resolve('cats', 1);
+    $presentation = new IdentifierPresentation;
+    $sample = $presentation->compose($design, 'AA317', true);
+    $issued = $presentation->compose($design, 'ABCD1234');
+    expect($sample['label'])->toBe('|| AA317 ||')->and($sample['sample'])->toBeTrue();
+    expect($issued['label'])->toBe('|| ABCD1234 ||')->and($issued['sample'])->toBeFalse();
+    expect($sample['bounds']['x'] + $sample['bounds']['width'])->toBe(1146);
+    expect($sample['bounds']['y'])->toBe(62);
+    expect($presentation->compose($design, 'AA317')['images'])->not->toBe($sample['images']);
+    $renderer = new Renderer;
+    expect($renderer->svg($issued['design'], [], $issued['images']))->toContain('data:image/png;base64,');
+    expect(getimagesizefromstring($renderer->png($issued['design'], [], $issued['images']))[0])->toBe(1200);
+    $long = $presentation->compose($design, str_repeat('W', 80));
+    expect($long['label'])->toBe('|| '.str_repeat('W', 80).' ||');
+    expect($long['bounds']['width'])->toBeLessThanOrEqual(528);
+});
+
+it('keeps an upper-right QR below the identifier header without changing the registered design', function () {
+    $original = stampCatalog()->resolve('cats', 1);
+    $header = (new IdentifierPresentation)->compose($original, 'AA317', true);
+    $composition = (new QrPresentation)->compose($header['design'], null, 'AA317', 'qr', 'top_right', '#FFFFFF', '#000000', Appearance::Presets['transparent']);
+    expect($composition['bounds']['y'])->toBeGreaterThanOrEqual($header['bounds']['y'] + $header['bounds']['height']);
+    expect($original->document['layers'])->not->toBe($header['design']->document['layers']);
+});
+
+it('rejects invalid or oversized Stamp identifiers', function (string $code) {
+    (new IdentifierPresentation)->compose(stampCatalog()->resolve('cats', 1), $code);
+})->with(['', '<script>', str_repeat('A', 81)])->throws(InvalidArgumentException::class);

@@ -83,6 +83,9 @@ final class QrPresentation
         $x = str_ends_with($position, '_left') ? 54 : $design->document['width'] - $width - 54;
         $y = str_starts_with($position, 'top_') ? 54 : $design->document['height'] - $height - 54;
         $layers = $design->document['layers'];
+        if ($position === 'top_right' && in_array('stamp_identifier', array_column($layers, 'slot'), true)) {
+            $y = max($y, 150);
+        }
         $images = [];
         if ($hasQr && $qrBytes !== null) {
             $images['stamp_marker_qr'] = $this->png($qrBytes, $paper, $trim, $settings);
