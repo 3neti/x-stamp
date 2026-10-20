@@ -78,11 +78,11 @@ final class Renderer
     }
 
     /** @param array<string, string> $slots @param array<string, string> $images */
-    public function svg(Design $design, array $slots = [], array $images = []): string
+    public function svg(Design $design, array $slots = [], array $images = [], bool $background = true): string
     {
         $doc = $design->document;
         $font = base64_encode(file_get_contents($design->asset($doc['font'])));
-        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'.$doc['width'].'" height="'.$doc['height'].'" viewBox="0 0 '.$doc['width'].' '.$doc['height'].'" role="img"><title>'.$this->escape($doc['name']).'</title><defs><style>@font-face{font-family:Stamp;src:url(data:font/ttf;base64,'.$font.')}text{font-family:Stamp}</style></defs><rect width="100%" height="100%" fill="'.$doc['background'].'"/>';
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'.$doc['width'].'" height="'.$doc['height'].'" viewBox="0 0 '.$doc['width'].' '.$doc['height'].'" role="img"><title>'.$this->escape($doc['name']).'</title><defs><style>@font-face{font-family:Stamp;src:url(data:font/ttf;base64,'.$font.')}text{font-family:Stamp}</style></defs>'.($background ? '<rect width="100%" height="100%" fill="'.$doc['background'].'"/>' : '');
         foreach ($this->layout($design, $slots, $images) as $layer) {
             $x = $layer['x'];
             $y = $layer['y'];
@@ -109,7 +109,25 @@ final class Renderer
     /** @param array<string, string> $slots @param array<string, string> $images */
     public function html(Design $design, array $slots = [], array $images = []): string
     {
-        return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src &apos;none&apos;; img-src data:; font-src data:; style-src &apos;unsafe-inline&apos;; base-uri &apos;none&apos;; form-action &apos;none&apos;"><style>html,body{margin:0;background:'.$design->document['background'].';color-scheme:only light}svg{display:block;width:100%;height:auto}</style></head><body>'.$this->svg($design, $slots, $images).'</body></html>';
+        return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src &apos;none&apos;; img-src data:; font-src data:; style-src &apos;unsafe-inline&apos;; base-uri &apos;none&apos;; form-action &apos;none&apos;"><style>html,body{margin:0;background:'.$design->document['background'].';color-scheme:only light}*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}svg{display:block;width:100%;height:auto}</style></head><body>'.$this->svg($design, $slots, $images).'</body></html>';
+    }
+
+    /**
+     * The application must sanitize artwork HTML and inline all assets before calling this method.
+     *
+     * @param  array<string, string>  $slots  @param array<string, string> $images
+     */
+    public function artworkHtml(Design $design, string $artwork, array $slots = [], array $images = []): string
+    {
+        $frame = $design->withLayers(array_values(array_filter($design->document['layers'], static fn (array $layer): bool => ! ($layer['type'] === 'image' && isset($layer['asset'])))));
+        $html = $this->html($frame, $slots, $images);
+        $svg = $this->svg($frame, $slots, $images);
+        $overlay = $this->svg($frame, $slots, $images, false);
+        $width = $design->document['width'];
+        $height = $design->document['height'];
+        $styles = '<style>body{width:'.$width.'px;height:'.$height.'px;overflow:hidden}.stamp-artwork,.stamp-frame{position:absolute;inset:0;overflow:hidden}.stamp-artwork{display:flex;align-items:center}.stamp-artwork>div{width:100%}.stamp-artwork img{display:block;width:100%!important;height:'.$height.'px!important;object-fit:cover}.stamp-frame{pointer-events:none}.relative{position:relative}.absolute{position:absolute}.inset-0{inset:0}.flex{display:flex}.items-center{align-items:center}.justify-end{justify-content:flex-end}.text-center{text-align:center}.text-white{color:white}.mx-auto{margin-left:auto;margin-right:auto}.overflow-hidden{overflow:hidden}.bg-black{background:black}.font-serif{font-family:Georgia,serif}.font-normal{font-weight:400}.italic{font-style:italic}.text-xs{font-size:12px}.text-lg{font-size:18px}.text-2xl{font-size:24px}.mb-3{margin-bottom:12px}.mb-8{margin-bottom:32px}.tracking-wide{letter-spacing:.025em}.tracking-widest{letter-spacing:.1em}.sm\\:text-4xl{font-size:36px}.sm\\:text-2xl{font-size:24px}.sm\\:text-sm{font-size:14px}h2,p{margin-top:0}</style>';
+
+        return str_replace('</head>', $styles.'</head>', str_replace($svg, '<div class="stamp-artwork">'.$artwork.'</div><div class="stamp-frame">'.$overlay.'</div>', $html));
     }
 
     /** @param array<string, string> $slots @param array<string, string> $images */

@@ -10,8 +10,11 @@ use InvalidArgumentException;
 final class QrPresentation
 {
     /** @param array<string, float|int> $settings @return string PNG bytes */
-    public function png(string $bytes, string $paper, string $trim, array $settings): string
+    public function png(string $bytes, string $paper, string $trim, array $settings, int $scale = 1): string
     {
+        if (! in_array($scale, [1, 2], true)) {
+            throw new InvalidArgumentException('Unsupported QR pixel density.');
+        }
         (new Appearance)->validateQr($settings);
         if (! str_starts_with($bytes, "\x89PNG\r\n\x1a\n") || strlen($bytes) > 2000000 || ! preg_match('/^#[0-9a-fA-F]{6}$/', $paper) || ! preg_match('/^#[0-9a-fA-F]{6}$/', $trim)) {
             throw new InvalidArgumentException('Invalid QR artwork or palette.');
@@ -46,13 +49,13 @@ final class QrPresentation
                 imagesetpixel($qr, $x, $y, imagecolorallocatealpha($qr, $rgb[0], $rgb[1], $rgb[2], (int) round((1 - $alpha) * 127)));
             }
         }
-        $marker = imagecreatetruecolor(190, 190);
+        $marker = imagecreatetruecolor(190 * $scale, 190 * $scale);
         imagealphablending($marker, false);
         imagesavealpha($marker, true);
         imagefill($marker, 0, 0, imagecolorallocatealpha($marker, ...[...$this->rgb($trim), (int) round(127 * (1 - $settings['frame']))]));
-        imagefilledrectangle($marker, 2, 2, 187, 187, imagecolorallocatealpha($marker, ...[...$tone, (int) round(127 * (1 - $settings['frame']))]));
+        imagefilledrectangle($marker, 2 * $scale, 2 * $scale, 188 * $scale - 1, 188 * $scale - 1, imagecolorallocatealpha($marker, ...[...$tone, (int) round(127 * (1 - $settings['frame']))]));
         imagealphablending($marker, true);
-        imagecopyresampled($marker, $qr, 10, 10, 0, 0, 170, 170, $width, $height);
+        imagecopyresampled($marker, $qr, 10 * $scale, 10 * $scale, 0, 0, 170 * $scale, 170 * $scale, $width, $height);
         ob_start();
         imagepng($marker);
         $contents = ob_get_clean();
@@ -69,7 +72,7 @@ final class QrPresentation
     }
 
     /** @param array<string, float|int> $settings @return array{design: Design, images: array<string, string>, bounds: array{x: int, y: int, width: int, height: int}|null} */
-    public function compose(Design $design, ?string $qrBytes, string $code, string $kind, string $position, string $paper, string $trim, array $settings): array
+    public function compose(Design $design, ?string $qrBytes, string $code, string $kind, string $position, string $paper, string $trim, array $settings, int $scale = 1): array
     {
         if (! in_array($kind, ['none', 'code', 'qr', 'both'], true) || ! in_array($position, ['top_left', 'top_right', 'bottom_left', 'bottom_right'], true)) {
             throw new InvalidArgumentException('Invalid Stamp marker placement.');
@@ -88,7 +91,7 @@ final class QrPresentation
         }
         $images = [];
         if ($hasQr && $qrBytes !== null) {
-            $images['stamp_marker_qr'] = $this->png($qrBytes, $paper, $trim, $settings);
+            $images['stamp_marker_qr'] = $this->png($qrBytes, $paper, $trim, $settings, $scale);
             $layers[] = ['type' => 'image', 'slot' => 'stamp_marker_qr', 'x' => $x, 'y' => $y, 'width' => 190, 'height' => 190, 'color' => $paper];
         }
         if (in_array($kind, ['code', 'both'], true)) {

@@ -10,8 +10,9 @@
         "opis/json-schema": "^2.6"
     },
     "require-dev": {
+        "laravel/pint": "^1.29",
         "pestphp/pest": "^4.0",
-        "laravel/pint": "^1.29"
+        "spatie/browsershot": "^5.4"
     },
     "autoload": {
         "psr-4": {
@@ -27,5 +28,8 @@
     "scripts": {
         "test": "pest --compact",
         "format": "pint --format agent"
+    },
+    "suggest": {
+        "spatie/browsershot": "^5.4 enables optional browser and browser-hd rendering (requires Node and Puppeteer)."
     }
 }
