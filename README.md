@@ -48,3 +48,10 @@ Browser integration tests skip when the module-path variable is absent. Missing
 runtime dependencies, timeouts and failed assets must be resolved before enabling
 these profiles in an application. Pin your Node/Puppeteer/Chrome versions when
 reproducible pixels matter; browser upgrades can change rasterization and emoji.
+
+## Configurable rendering roadmap
+
+The proposed provider/quality split and lifecycle-safe fallback policy are in the
+[rendering plan](docs/rendering/PLAN.md) and [compass](docs/rendering/COMPASS.md).
+They describe future work; the optional Chromium profiles above remain the current
+API. No Cloudflare adapter or automatic fallback is implemented in this release.
